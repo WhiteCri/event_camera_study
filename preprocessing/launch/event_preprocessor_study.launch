@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="event_preprocessing_study" type="event_preprocessor_ros" name="event_preprocessor_ros">
+    <rosparam command="load" file="$(find event_preprocessing_study)/cfg/preprocessor.cfg"/>
+  </node>
+</launch>
