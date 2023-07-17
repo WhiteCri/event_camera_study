@@ -49,8 +49,12 @@ void EventPreprocessor::load_ros_parameters(ros::NodeHandle& pnh){
     get_param(pnh, "event_txt_path", event_txt_path);
   }
 
-  // preprocessing typoe
+  /* preprocessing type */
   get_param(pnh, "preprocessing_type", preprocessing_type);
+  //EROS: Gava, Luna, et al. "Puck: Parallel surface and convolution-kernel tracking for event-based cameras."
+  get_param(pnh, "eros_k", eros_k);
+  this->eros_d = std::pow(0.3, 1.0/eros_k);
+  get_param(pnh, "eros_apply_gaussian_blur", eros_apply_gaussian_blur);
 
   // sub sampling method
   get_param(pnh, "sampling_method", sampling_method);
@@ -150,6 +154,7 @@ void EventPreprocessor::run(){
   else error(std::string() + "output_type: " + output_type + " is not supported");
   
   cout << "preprocessing finished" << endl;
+  ros::shutdown();
 }
 
 bool EventPreprocessor::sample_events(dvs_msgs::EventArray& event_slice, std::string sample_type, bool on_start){
@@ -205,6 +210,35 @@ void EventPreprocessor::preprocess_events(
       }
     }
   }
+  else if (preprocessing_type == "EROS"){ 
+    static bool is_first = true;
+    if (is_first){
+      // output.image_eros = cv::Mat::ones(event_slice.height, event_slice.width, CV_8UC1)*255;
+      output.image_eros = cv::Mat::zeros(event_slice.height, event_slice.width, CV_8UC1);
+      is_first = false;
+    }
+    for(size_t idx_e = 0; idx_e < event_slice.events.size(); ++idx_e){
+      size_t x_start = std::max<int>(event_slice.events[idx_e].x - eros_k, 0);
+      size_t x_end   = std::min<int>(event_slice.events[idx_e].x + eros_k, event_slice.width - 1);
+      size_t y_start = std::max<int>(event_slice.events[idx_e].y - eros_k, 0);
+      size_t y_end   = std::min<int>(event_slice.events[idx_e].y + eros_k, event_slice.height - 1);
+
+      for(size_t x_idx = x_start; x_idx < x_end; ++x_idx){
+        for(size_t y_idx = y_start; y_idx < y_end; ++y_idx){
+          output.image_eros.at<uint8_t>(y_idx, x_idx) *= eros_d;
+        }
+      }
+      // cout << "value: " << int(output.image_eros.at<uint8_t>(
+      //   event_slice.events[idx_e].y, 
+      //   event_slice.events[idx_e].x
+      // )) << ' ' << (int)eros_xy <<  ' ' << eros_d << endl;
+      
+      output.image_eros.at<uint8_t>(
+        event_slice.events[idx_e].y, 
+        event_slice.events[idx_e].x
+      ) = (uint8_t)255;
+    }
+  }
   else error(std::string() + "preprocessing_type: " + preprocessing_type + " is not supported");
 }
 
@@ -228,6 +262,24 @@ void EventPreprocessor::handle_preprocessed_results(PreprocessingOutputType& out
       cv::Mat SAE_negative_8U;
       cv::normalize(output.image_SAE_negative, SAE_negative_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
       images_to_be_saved.push_back(SAE_negative_8U);
+      names.push_back(png_path.string());
+    }
+    else if (preprocessing_type == "EROS"){
+      fs::path dir(image_file_output_dir);
+      std::string name;
+      
+      cv::Mat eros_8U;
+      output.image_eros.copyTo(eros_8U);
+      if (eros_apply_gaussian_blur){
+        cv::GaussianBlur(eros_8U, eros_8U, cv::Size(eros_k, eros_k), 0, 0);
+        // cv::normalize(eros_8U, eros_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+        name = std::to_string(output.seq) + "_EROS_gaussian.png";
+      }
+      else {
+        name = std::to_string(output.seq) + "_EROS.png";
+      }
+      fs::path png_path = dir / name;
+      images_to_be_saved.push_back(eros_8U);
       names.push_back(png_path.string());
     }
 
