@@ -44,8 +44,12 @@ private:
   // preprocessing and sampling related
   std::string sampling_method, preprocessing_type;
   double sampling_duration;
+  int sampling_number;
 
   /* preprocessing parameters */
+  //BIN
+  int bin_r;
+  double bin_tau;
   //EROS
   double eros_d;
   int eros_k;
@@ -57,6 +61,7 @@ private:
   std::string image_file_output_dir;
   size_t output_max_seq;
   bool output_apply_colormap;
+  int enable_gen_image_file_dir;
 };
 
 /*
