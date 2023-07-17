@@ -212,6 +212,144 @@ void EventPreprocessor::preprocess_events(
       }
     }
   }
+  else if (preprocessing_type == "testSAE"){
+    output.image_SAE_positive = cv::Mat::zeros(event_slice.height, event_slice.width, CV_64FC1);
+    output.image_SAE_negative = cv::Mat::zeros(event_slice.height, event_slice.width, CV_64FC1);
+    int R = 0;
+
+    for(size_t i = 0; i < event_slice.events.size(); ++i){
+      for(int ux = -R; ux <= R; ux++){
+        for(int uy = -R; uy <= R; uy++){
+          int newX = event_slice.events[i].x + ux;
+          int newY = event_slice.events[i].y + uy;
+          if(newX >= 0 && newX < static_cast<int>(event_slice.width) && newY >= 0 && newY < static_cast<int>(event_slice.height)){
+            for(int j = i; j>=0; j--){
+              if(newX == event_slice.events[j].x && newY == event_slice.events[j].y && event_slice.events[i].polarity==event_slice.events[j].polarity){
+                if (event_slice.events[j].polarity) {
+                  output.image_SAE_positive.at<double>(newY, newX) = (event_slice.events[j].ts-event_slice.events[0].ts).toSec();
+                }
+                else {
+                  output.image_SAE_negative.at<double>(newY, newX) = (event_slice.events[j].ts-event_slice.events[0].ts).toSec();
+                }
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+
+  else if (preprocessing_type == "BIN"){
+    output.image_BIN_positive = cv::Mat::zeros(event_slice.height, event_slice.width, CV_64FC1);
+    output.image_BIN_negative = cv::Mat::zeros(event_slice.height, event_slice.width, CV_64FC1);
+    int R = 0;
+    double tau = 0.007;
+
+    for(size_t i = 0; i < event_slice.events.size(); ++i){
+      for(int ux = -R; ux <= R; ux++){
+        for(int uy = -R; uy <= R; uy++){
+          int newX = event_slice.events[i].x + ux;
+          int newY = event_slice.events[i].y + uy;
+          if(newX >= 0 && newX < static_cast<int>(event_slice.width) && newY >= 0 && newY < static_cast<int>(event_slice.height)){
+            for(int j = i; j>=0; j--){
+              double t = (event_slice.events[i].ts - event_slice.events[j].ts).toSec();
+              if(newX == event_slice.events[j].x && newY == event_slice.events[j].y && event_slice.events[i].polarity==event_slice.events[j].polarity){
+                if (event_slice.events[j].polarity) {
+                  if (t<=tau) {
+                    output.image_BIN_positive.at<double>(newY, newX) = 1;
+                  }
+                  else {
+                    output.image_BIN_positive.at<double>(newY, newX) = 0;
+                  }
+                }
+                else {                  
+                  if (t<=tau) {
+                    output.image_BIN_negative.at<double>(newY, newX) = 1;
+                  }
+                  else {
+                    output.image_BIN_negative.at<double>(newY, newX) = 0;
+                  }
+                }
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  else if (preprocessing_type == "LIN"){
+    output.image_BIN_positive = cv::Mat::zeros(event_slice.height, event_slice.width, CV_64FC1);
+    output.image_BIN_negative = cv::Mat::zeros(event_slice.height, event_slice.width, CV_64FC1);
+    int R = 1;
+    double tau = 0.001;
+
+    for(size_t i = 0; i < event_slice.events.size(); ++i){
+      for(int ux = -R; ux <= R; ux++){
+        for(int uy = -R; uy <= R; uy++){
+          int newX = event_slice.events[i].x + ux;
+          int newY = event_slice.events[i].y + uy;
+          if(newX >= 0 && newX < static_cast<int>(event_slice.width) && newY >= 0 && newY < static_cast<int>(event_slice.height)){
+            for(int j = i; j>=0; j--){ 
+              double t = (event_slice.events[i].ts - event_slice.events[j].ts).toSec();
+              if(newX == event_slice.events[j].x && newY == event_slice.events[j].y && event_slice.events[i].polarity==event_slice.events[j].polarity){
+                if (event_slice.events[j].polarity) {
+                  if (t>=tau) {
+                    output.image_BIN_positive.at<double>(newY, newX) = -(1-t/tau);
+                  }
+                  else {
+                    output.image_BIN_positive.at<double>(newY, newX) = 0;
+                  }
+                }
+                else {                  
+                  if (t>=tau) {
+                    output.image_BIN_negative.at<double>(newY, newX) = -(1-t/tau);
+                  }
+                  else {
+                    output.image_BIN_negative.at<double>(newY, newX) = 0;
+                  }
+                }
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  else if (preprocessing_type == "EXP"){
+    output.image_BIN_positive = cv::Mat::zeros(event_slice.height, event_slice.width, CV_64FC1);
+    output.image_BIN_negative = cv::Mat::zeros(event_slice.height, event_slice.width, CV_64FC1);
+    int R = 1;
+    double tau = 100;
+
+    for(size_t i = 0; i < event_slice.events.size(); ++i){
+      for(int ux = -R; ux <= R; ux++){
+        for(int uy = -R; uy <= R; uy++){
+          int newX = event_slice.events[i].x + ux;
+          int newY = event_slice.events[i].y + uy;
+          if(newX >= 0 && newX < static_cast<int>(event_slice.width) && newY >= 0 && newY < static_cast<int>(event_slice.height)){
+            for(int j = i; j>=0; j--){
+              double t = (event_slice.events[i].ts - event_slice.events[j].ts).toSec();
+              if(newX == event_slice.events[j].x && newY == event_slice.events[j].y && event_slice.events[i].polarity==event_slice.events[j].polarity){
+                if (event_slice.events[j].polarity) {
+                  output.image_BIN_positive.at<double>(newY, newX) = cv::exp(-tau*t);
+                }
+                else {                  
+                  output.image_BIN_negative.at<double>(newY, newX) = cv::exp(-tau*t);
+                }
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
   else if (preprocessing_type == "EROS"){ 
     static bool is_first = true;
     if (is_first){
@@ -296,17 +434,97 @@ void EventPreprocessor::handle_preprocessed_results(PreprocessingOutputType& out
 
     if (preprocessing_type == "SAE"){
       name = std::to_string(output.seq) + "_SAE_positive.png";
-      fs::path png_path = dir / name;
+      fs::path png_path = dir / preprocessing_type / name;
       cv::Mat SAE_positive_8U;
       cv::normalize(output.image_SAE_positive, SAE_positive_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
       images_to_be_saved.push_back(SAE_positive_8U);
       names.push_back(png_path.string());
 
       name = std::to_string(output.seq) + "_SAE_negative.png";
-      png_path = dir / name;
+      png_path = dir / preprocessing_type / name;
       cv::Mat SAE_negative_8U;
       cv::normalize(output.image_SAE_negative, SAE_negative_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
       images_to_be_saved.push_back(SAE_negative_8U);
+      names.push_back(png_path.string());
+    }
+    ////////////////////test/////////////////////////////////
+    else if (preprocessing_type == "testSAE"){
+      fs::path dir(image_file_output_dir);
+      std::string name;
+      
+      name = std::to_string(output.seq) + "_tSAE_positive.png";
+      fs::path png_path = dir / preprocessing_type / name;
+      cv::Mat SAE_positive_8U;
+      cv::normalize(output.image_SAE_positive, SAE_positive_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+      images_to_be_saved.push_back(SAE_positive_8U);
+      names.push_back(png_path.string());
+
+      name = std::to_string(output.seq) + "_tSAE_negative.png";
+      png_path = dir / preprocessing_type / name;
+      cv::Mat SAE_negative_8U;
+      cv::normalize(output.image_SAE_negative, SAE_negative_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+      images_to_be_saved.push_back(SAE_negative_8U);
+      names.push_back(png_path.string());
+    }
+    ///////////////////////////////////////////////////////////
+
+    else if (preprocessing_type == "BIN"){
+      fs::path dir(image_file_output_dir);
+      std::string name;
+      
+      name = std::to_string(output.seq) + "_BIN_positive.png";
+      fs::path png_path = dir / preprocessing_type / name;
+      cv::Mat BIN_positive_8U;
+      cv::normalize(output.image_BIN_positive, BIN_positive_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+      images_to_be_saved.push_back(BIN_positive_8U);
+      names.push_back(png_path.string());
+
+      name = std::to_string(output.seq) + "_BIN_negative.png";
+      png_path = dir / preprocessing_type / name;
+      cv::Mat BIN_negative_8U;
+      cv::normalize(output.image_BIN_negative, BIN_negative_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+      images_to_be_saved.push_back(BIN_negative_8U);
+      names.push_back(png_path.string());
+    }
+    ///////////////////////////////////////////////////////////
+
+    else if (preprocessing_type == "LIN"){
+      fs::path dir(image_file_output_dir);
+      std::string name;
+      
+      name = std::to_string(output.seq) + "_LIN_positive.png";
+      fs::path png_path = dir / preprocessing_type / name;
+      cv::Mat BIN_positive_8U;
+      cv::normalize(output.image_BIN_positive, BIN_positive_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+      images_to_be_saved.push_back(BIN_positive_8U);
+      names.push_back(png_path.string());
+
+      name = std::to_string(output.seq) + "_LIN_negative.png";
+      png_path = dir / preprocessing_type / name;
+      cv::Mat BIN_negative_8U;
+      cv::normalize(output.image_BIN_negative, BIN_negative_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+      images_to_be_saved.push_back(BIN_negative_8U);
+      names.push_back(png_path.string());
+    }
+
+    ///////////////////////////////////////////////////////////////
+
+    else if (preprocessing_type == "EXP"){
+      fs::path dir(image_file_output_dir);
+      std::string name;
+      
+      name = std::to_string(output.seq) + "_EXP_positive.png";
+      fs::path png_path = dir / preprocessing_type / name;
+      cv::Mat BIN_positive_8U;
+      cv::normalize(output.image_BIN_positive, BIN_positive_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+      images_to_be_saved.push_back(BIN_positive_8U);
+      names.push_back(png_path.string());
+
+      name = std::to_string(output.seq) + "_EXP_negative.png";
+      png_path = dir / preprocessing_type / name;
+      cv::Mat BIN_negative_8U;
+      cv::normalize(output.image_BIN_negative, BIN_negative_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+      images_to_be_saved.push_back(BIN_negative_8U);
       names.push_back(png_path.string());
     }
     else if (preprocessing_type == "EROS"){

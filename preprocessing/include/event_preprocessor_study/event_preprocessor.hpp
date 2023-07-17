@@ -11,7 +11,7 @@ class EventPreprocessor{
   struct PreprocessingOutputType{
     PreprocessingOutputType(): seq(0){}
     size_t seq;
-    cv::Mat image_SAE_positive, image_SAE_negative; // SAE
+    cv::Mat image_SAE_positive, image_SAE_negative, image_BIN_positive, image_BIN_negative; //todo: add variables with its own purpose
     cv::Mat image_eros;
     cv::Mat image_SORT;
     cv::Mat image_SITS[2]; // 0: positive, 1: negative
