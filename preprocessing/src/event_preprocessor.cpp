@@ -55,6 +55,8 @@ void EventPreprocessor::load_ros_parameters(ros::NodeHandle& pnh){
   get_param(pnh, "eros_k", eros_k);
   this->eros_d = std::pow(0.3, 1.0/eros_k);
   get_param(pnh, "eros_apply_gaussian_blur", eros_apply_gaussian_blur);
+  //SITS:
+  get_param(pnh, "sits_r", sits_r);
 
   // sub sampling method
   get_param(pnh, "sampling_method", sampling_method);
@@ -228,15 +230,58 @@ void EventPreprocessor::preprocess_events(
           output.image_eros.at<uint8_t>(y_idx, x_idx) *= eros_d;
         }
       }
-      // cout << "value: " << int(output.image_eros.at<uint8_t>(
-      //   event_slice.events[idx_e].y, 
-      //   event_slice.events[idx_e].x
-      // )) << ' ' << (int)eros_xy <<  ' ' << eros_d << endl;
-      
       output.image_eros.at<uint8_t>(
         event_slice.events[idx_e].y, 
         event_slice.events[idx_e].x
       ) = (uint8_t)255;
+    }
+  }
+  else if (preprocessing_type == "SORT"){
+    /* sort events by timestamp */
+    // polarity is not considered
+    using XY_COOR = std::pair<int, int>;
+    
+    // 1. find most recent events
+    std::map<XY_COOR, double> recent_events;
+    for(size_t idx_e = 1; idx_e < event_slice.events.size(); ++idx_e){ // avoid first event
+    // pixels where event did not occur will be considered as first event occured
+      auto coor = XY_COOR(event_slice.events[idx_e].x, event_slice.events[idx_e].y);
+      recent_events[coor] = (event_slice.events[idx_e].ts - event_slice.events[0].ts).toSec();
+    } // until this line, everyline can run O(1) in realtime senario
+
+    // sort by time. ascending order
+    auto cmp = [](const std::pair<XY_COOR, ros::Time>& a, const std::pair<XY_COOR, ros::Time>& b){
+      return a.second < b.second;
+    };
+    std::vector<std::pair<XY_COOR, ros::Time>> sorted_events(recent_events.begin(), recent_events.end());
+    std::sort(sorted_events.begin(), sorted_events.end(), cmp); // O(NlogN)
+
+    // assign order
+    output.image_SORT = cv::Mat::zeros(event_slice.height, event_slice.width, CV_64FC1);
+    int order = 1;
+    for(auto&& e = sorted_events.begin(); e != sorted_events.end(); ++e){
+      output.image_SORT.at<double>(e->first.second, e->first.first) = order++; // y, x
+    }
+  } 
+  else if (preprocessing_type == "SITS"){
+    output.image_SITS[0] = cv::Mat::ones(event_slice.height, event_slice.width, CV_32SC1);
+    output.image_SITS[1] = cv::Mat::ones(event_slice.height, event_slice.width, CV_32SC1);
+    for(size_t idx_e = 0; idx_e < event_slice.events.size(); ++idx_e){ 
+      if (event_slice.events[idx_e].x - sits_r < 0) continue;
+      if (event_slice.events[idx_e].x + sits_r >= (int)event_slice.width) continue;
+      if (event_slice.events[idx_e].y - sits_r < 0) continue;
+      if (event_slice.events[idx_e].y + sits_r >= (int)event_slice.height) continue;
+      
+      int image_index = event_slice.events[idx_e].polarity ? 0 : 1;
+      int sits_value = output.image_SITS[image_index].at<int>(event_slice.events[idx_e].y, event_slice.events[idx_e].x);
+      for(int xi = event_slice.events[idx_e].x - sits_r; xi <= event_slice.events[idx_e].x + sits_r; xi++){
+        for(int yi = event_slice.events[idx_e].y - sits_r; yi <= event_slice.events[idx_e].y + sits_r; yi++){
+          if (output.image_SITS[image_index].at<int>(yi, xi) > sits_value){
+            output.image_SITS[image_index].at<int>(yi, xi) -= 1;
+          }
+        }
+      }
+      output.image_SITS[image_index].at<int>(event_slice.events[idx_e].y, event_slice.events[idx_e].x) = sits_r*sits_r+1;
     }
   }
   else error(std::string() + "preprocessing_type: " + preprocessing_type + " is not supported");
@@ -246,10 +291,10 @@ void EventPreprocessor::handle_preprocessed_results(PreprocessingOutputType& out
   if (output_type == "image_file"){
     vector<cv::Mat> images_to_be_saved;
     vector<std::string> names;
+    fs::path dir(image_file_output_dir); fs::create_directory(dir);
+    std::string name;
+
     if (preprocessing_type == "SAE"){
-      fs::path dir(image_file_output_dir);
-      std::string name;
-      
       name = std::to_string(output.seq) + "_SAE_positive.png";
       fs::path png_path = dir / name;
       cv::Mat SAE_positive_8U;
@@ -265,14 +310,11 @@ void EventPreprocessor::handle_preprocessed_results(PreprocessingOutputType& out
       names.push_back(png_path.string());
     }
     else if (preprocessing_type == "EROS"){
-      fs::path dir(image_file_output_dir);
-      std::string name;
-      
       cv::Mat eros_8U;
       output.image_eros.copyTo(eros_8U);
       if (eros_apply_gaussian_blur){
         cv::GaussianBlur(eros_8U, eros_8U, cv::Size(eros_k, eros_k), 0, 0);
-        // cv::normalize(eros_8U, eros_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+        cv::normalize(eros_8U, eros_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
         name = std::to_string(output.seq) + "_EROS_gaussian.png";
       }
       else {
@@ -281,6 +323,29 @@ void EventPreprocessor::handle_preprocessed_results(PreprocessingOutputType& out
       fs::path png_path = dir / name;
       images_to_be_saved.push_back(eros_8U);
       names.push_back(png_path.string());
+    }
+    else if (preprocessing_type == "SORT"){
+      cv::Mat sort_8U;
+      cv::normalize(output.image_SORT, sort_8U, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+      name = std::to_string(output.seq) + "_SORT.png";
+      fs::path png_path = dir / name;
+      images_to_be_saved.push_back(sort_8U);
+      names.push_back(png_path.string());
+    }
+    else if (preprocessing_type == "SITS"){
+      cv::Mat sits_8U[2];
+      
+      cv::normalize(output.image_SITS[0], sits_8U[0], 0, 255, cv::NORM_MINMAX, CV_8UC1);
+      name = std::to_string(output.seq) + "_SITS_positive.png";
+      fs::path png_path1 = dir / name;
+      images_to_be_saved.push_back(sits_8U[0]);
+      names.push_back(png_path1.string());
+      
+      cv::normalize(output.image_SITS[1], sits_8U[1], 0, 255, cv::NORM_MINMAX, CV_8UC1);
+      name = std::to_string(output.seq) + "_SITS_negative.png";
+      fs::path png_path2 = dir / name;
+      images_to_be_saved.push_back(sits_8U[1]);
+      names.push_back(png_path2.string());
     }
 
     if (images_to_be_saved.size() != names.size()) error("images_to_be_saved.size() != names.size()");
