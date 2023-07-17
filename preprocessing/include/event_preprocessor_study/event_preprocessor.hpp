@@ -11,7 +11,8 @@ class EventPreprocessor{
   struct PreprocessingOutputType{
     PreprocessingOutputType(): seq(0){}
     size_t seq;
-    cv::Mat image_SAE_positive, image_SAE_negative, image_BIN_positive, image_BIN_negative;
+    cv::Mat image_SAE_positive, image_SAE_negative, image_BIN_positive, image_BIN_negative; //todo: add variables with its own purpose
+    cv::Mat image_eros;
   };
 public:
   EventPreprocessor(ros::NodeHandle& nh, ros::NodeHandle& pnh);
@@ -41,6 +42,12 @@ private:
   // preprocessing and sampling related
   std::string sampling_method, preprocessing_type;
   double sampling_duration;
+
+  /* preprocessing parameters */
+  //EROS
+  double eros_d;
+  int eros_k;
+  int eros_apply_gaussian_blur;
 
   // output related
   std::string image_file_output_dir;
