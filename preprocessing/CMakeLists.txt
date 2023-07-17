@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.24.1)
 project(event_preprocessing_study)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++17 -O3 -Wall)
+add_compile_options(-std=c++17 -O2 -Wall)
 
 find_package(catkin_simple REQUIRED)
 find_package(OpenCV REQUIRED)

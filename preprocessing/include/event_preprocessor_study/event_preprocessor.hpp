@@ -11,7 +11,7 @@ class EventPreprocessor{
   struct PreprocessingOutputType{
     PreprocessingOutputType(): seq(0){}
     size_t seq;
-    cv::Mat image_SAE_positive, image_SAE_negative;
+    cv::Mat image_SAE_positive, image_SAE_negative, image_BIN_positive, image_BIN_negative;
   };
 public:
   EventPreprocessor(ros::NodeHandle& nh, ros::NodeHandle& pnh);
