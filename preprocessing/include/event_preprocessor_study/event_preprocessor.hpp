@@ -15,6 +15,7 @@ class EventPreprocessor{
     cv::Mat image_eros;
     cv::Mat image_SORT;
     cv::Mat image_SITS[2]; // 0: positive, 1: negative
+    cv::Mat image_TOS; // luvHarris
   };
 public:
   EventPreprocessor(ros::NodeHandle& nh, ros::NodeHandle& pnh);
@@ -56,6 +57,8 @@ private:
   int eros_apply_gaussian_blur;
   //SITS
   int sits_r;
+  //luvHarris
+  int luv_k_tos;
 
   // output related
   std::string image_file_output_dir;

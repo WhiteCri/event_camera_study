@@ -61,6 +61,8 @@ void EventPreprocessor::load_ros_parameters(ros::NodeHandle& pnh){
   get_param(pnh, "eros_apply_gaussian_blur", eros_apply_gaussian_blur);
   //SITS
   get_param(pnh, "sits_r", sits_r);
+  //luvHarris
+  get_param(pnh, "luv_k_tos", luv_k_tos);
 
   // sub sampling method
   get_param(pnh, "sampling_method", sampling_method);
@@ -491,6 +493,30 @@ void EventPreprocessor::preprocess_events(
       output.image_SITS[image_index].at<int>(event_slice.events[idx_e].y, event_slice.events[idx_e].x) = sits_r*sits_r+1;
     }
   }
+  else if (preprocessing_type == "luvHarris"){
+    bool is_first = true;
+    if (is_first){
+      output.image_TOS = cv::Mat::zeros(event_slice.height, event_slice.width, CV_64FC1);
+      is_first = false;
+    }
+ 
+    int luv_t_tos = 2*(2*luv_k_tos+1);
+    for(size_t idx_e = 0; idx_e < event_slice.events.size(); ++idx_e){ 
+      if (event_slice.events[idx_e].x - luv_k_tos < 0) continue;
+      if (event_slice.events[idx_e].x + luv_k_tos >= (int)event_slice.width) continue;
+      if (event_slice.events[idx_e].y - luv_k_tos < 0) continue;
+      if (event_slice.events[idx_e].y + luv_k_tos >= (int)event_slice.height) continue;
+      
+      for(int xi = event_slice.events[idx_e].x - luv_k_tos; xi <= event_slice.events[idx_e].x + luv_k_tos; xi++){
+        for(int yi = event_slice.events[idx_e].y - luv_k_tos; yi <= event_slice.events[idx_e].y + luv_k_tos; yi++){
+          output.image_TOS.at<double>(yi, xi) -= 1;
+          if (output.image_TOS.at<double>(yi, xi) < 255 - luv_t_tos)
+            output.image_TOS.at<double>(yi, xi) = 0;
+        }
+      }
+      output.image_TOS.at<double>(event_slice.events[idx_e].y, event_slice.events[idx_e].x) = 255;
+    }
+  }
   else error(std::string() + "preprocessing_type: " + preprocessing_type + " is not supported");
 }
 
@@ -647,6 +673,16 @@ void EventPreprocessor::handle_preprocessed_results(PreprocessingOutputType& out
       fs::path png_path2 = dir / name;
       images_to_be_saved.push_back(sits_8U[1]);
       names.push_back(png_path2.string());
+    }
+    else if (preprocessing_type == "luvHarris"){
+      cv::Mat luvHarris;
+      output.image_TOS.copyTo(luvHarris);
+
+      cv::normalize(output.image_TOS, luvHarris, 0, 255, cv::NORM_MINMAX, CV_8UC1);
+      name = std::to_string(output.seq) + "_luvHarris.png";
+      fs::path png_path = dir / name;
+      images_to_be_saved.push_back(luvHarris);
+      names.push_back(png_path.string());
     }
     else error(std::string() + "preprocessing_type: " + preprocessing_type + " is not supported");
 
